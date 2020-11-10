@@ -1,0 +1,4 @@
+[submodule "Calla"]
+	path = Calla
+	url = git@github.com:capnmidnight/Calla.git
+	branch = master
