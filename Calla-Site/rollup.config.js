@@ -1,6 +1,7 @@
 import fs from "fs";
 import { nodeResolve } from "@rollup/plugin-node-resolve";
 import { terser } from "rollup-plugin-terser";
+import callaRollupConfig from "./scripts/lib/Calla/rollup.config";
 
 const traceKit = fs.readFileSync("node_modules/tracekit/tracekit.js", { encoding: "utf8" });
 const banner = `${traceKit}
@@ -29,9 +30,9 @@ const footer = `
     TraceKit.report(exp);
 }`;
 
-function def(name, withTraceKit, minify) {
+function def(root, name, withTraceKit, minify) {
     const opts = {
-        input: `scripts/${name}/index.js`,
+        input: `${root}/${name}/index.js`,
         plugins: [
             nodeResolve()
         ],
@@ -64,23 +65,27 @@ function def(name, withTraceKit, minify) {
 const bundles = [];
 
 if (process.env.BUILD === "production") {
-    bundles.push(def("version", false, true));
+    bundles.push(def("scripts", "version", false, true));
+    for (const config of callaRollupConfig) {
+        config.input = "scripts/lib/Calla/" + config.input;
+    }
+    bundles.push(...callaRollupConfig);
 }
 
 if (process.env.BUILD === "development") {
-    bundles.push(def("tests", false, false));
+    bundles.push(def("scripts/lib/Calla", "tests", false, false));
 }
 
 if (process.env.BUILD === "production"
     || process.env.BUILD === "development"
     || process.env.BUILD === "basic") {
-    bundles.push(def("basic", false, true));
+    bundles.push(def("scripts/lib/Calla/examples", "basic", false, true));
 }
 
 if (process.env.BUILD === "production"
     || process.env.BUILD === "development"
     || process.env.BUILD === "game") {
-    bundles.push(def("game", true, true));
+    bundles.push(def("scripts/lib/Calla/examples", "game", true, true));
 }
 
 export default bundles;

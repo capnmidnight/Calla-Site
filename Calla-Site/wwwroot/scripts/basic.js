@@ -1,10 +1,4 @@
 /**
- * Empties out an array
- * @param {any[]} arr - the array to empty.
- * @returns {any[]} - the items that were in the array.
- */
-
-/**
  * Removes an item at the given index from an array.
  * @param {any[]} arr
  * @param {number} idx
@@ -531,6 +525,19 @@ function slerpVectors(m, a, b, p) {
     }
 }
 
+/**
+ * Pick a value that is proportionally between two values.
+ *
+ * @param {number} a
+ * @param {number} b
+ * @param {number} p
+ * @returns {number}
+ */
+
+function lerp(a, b, p) {
+    return (1 - p) * a + p * b;
+}
+
 class Vector3 {
     constructor() {
         /** @type {number} */
@@ -546,23 +553,93 @@ class Vector3 {
     }
 
     /**
+     * @param {number} s
+     * @returns {Vector3}
+     */
+    scale(s) {
+        this.x *= s;
+        this.y *= s;
+        this.z *= s;
+        return this;
+    }
+
+    /**
+     * @param {Vector3} v
+     * @returns {Vector3}
+     */
+    add(v) {
+        this.x += v.x;
+        this.y += v.y;
+        this.z += v.z;
+        return this;
+    }
+
+    /**
+     * @param {Vector3} v
+     * @returns {Vector3}
+     */
+    sub(v) {
+        this.x -= v.x;
+        this.y -= v.y;
+        this.z -= v.z;
+        return this;
+    }
+
+    /**
      * @param {number} x
      * @param {number} y
      * @param {number} z
+     * @returns {Vector3}
      */
     set(x, y, z) {
         this.x = x;
         this.y = y;
         this.z = z;
+        return this;
     }
 
     /**
      * @param {Vector3} v
+     * @returns {Vector3}
      */
     copy(v) {
         this.x = v.x;
         this.y = v.y;
         this.z = v.z;
+        return this;
+    }
+
+    /**
+     * @param {Vector3} v
+     * @param {number} p
+     * @returns {Vector3}
+     */
+    lerp(v, p) {
+        this.x = lerp(this.x, v.x, p);
+        this.y = lerp(this.y, v.y, p);
+        this.z = lerp(this.z, v.z, p);
+        return this;
+    }
+
+    /**
+     * @param {Vector3} v
+     */
+    dot(v) {
+        return this.x * v.x + this.y * v.y + this.z * v.z;
+    }
+
+    /**
+     * @returns {Vector3}
+     */
+    normalize() {
+        const lenSqr = this.dot(this);
+        if (lenSqr > 0) {
+            const len = Math.sqrt(lenSqr);
+            this.x /= len;
+            this.y /= len;
+            this.z /= len;
+        }
+        return this;
     }
 }
 
@@ -1415,8 +1492,16 @@ class BufferList {
      */
     async load() {
         try {
-            const tasks = this._bufferData.map((bData, taskId) =>
-                this._launchAsyncLoadTask(bData, taskId));
+            const tasks = this._bufferData.map(async (bData, taskId) => {
+                try {
+                    return await this._launchAsyncLoadTask(bData, taskId);
+                }
+                catch (exp) {
+                    const message = 'BufferList: error while loading "' +
+                        bData + '". (' + exp.message + ')';
+                    throwError(message);
+                }
+            });
 
             const buffers = await Promise.all(tasks);
 
@@ -1428,8 +1513,7 @@ class BufferList {
             return buffers;
         }
         catch (exp) {
-            const message = 'BufferList: error while loading "' +
-                bData + '". (' + exp.message + ')';
+            const message = 'BufferList: error while loading ". (' + exp.message + ')';
             throwError(message);
         }
     }
@@ -2088,7 +2172,7 @@ class FOARenderer {
     }
 
     dipose() {
-        if (mode === RenderingMode.BYPASS) {
+        if (this.getRenderingMode() === RenderingMode.BYPASS) {
             this._bypass.connect(this.output);
         }
 
@@ -2765,7 +2849,7 @@ class HOARotator {
     }
 
     dispose() {
-        for (let i = 1; i <= ambisonicOrder; i++) {
+        for (let i = 1; i <= this._ambisonicOrder; i++) {
             // Each ambisonic order requires a separate (2l + 1) x (2l + 1) rotation
             // matrix. We compute the offset value as the first channel index of the
             // current order where
@@ -3006,7 +3090,7 @@ class HOARenderer {
     }
 
     dispose() {
-        if (mode === RenderingMode.BYPASS) {
+        if (this.getRenderingMode() === RenderingMode.BYPASS) {
             this._bypass.connect(this.output);
         }
 
@@ -5128,18 +5212,18 @@ class Encoder {
 Encoder.validateAmbisonicOrder = function (ambisonicOrder) {
     if (isNaN(ambisonicOrder) || ambisonicOrder == undefined) {
         log$1('Error: Invalid ambisonic order',
-            options.ambisonicOrder, '\nUsing ambisonicOrder=1 instead.');
+            ambisonicOrder, '\nUsing ambisonicOrder=1 instead.');
         ambisonicOrder = 1;
     } else if (ambisonicOrder < 1) {
         log$1('Error: Unable to render ambisonic order',
-            options.ambisonicOrder, '(Min order is 1)',
+            ambisonicOrder, '(Min order is 1)',
             '\nUsing min order instead.');
         ambisonicOrder = 1;
     } else if (ambisonicOrder > SPHERICAL_HARMONICS_MAX_ORDER) {
         log$1('Error: Unable to render ambisonic order',
-            options.ambisonicOrder, '(Max order is',
+            ambisonicOrder, '(Max order is',
             SPHERICAL_HARMONICS_MAX_ORDER, ')\nUsing max order instead.');
-        options.ambisonicOrder = SPHERICAL_HARMONICS_MAX_ORDER;
+        ambisonicOrder = SPHERICAL_HARMONICS_MAX_ORDER;
     }
     return ambisonicOrder;
 };
@@ -19642,7 +19726,7 @@ class CallaClient extends EventBase {
     setLocalOrientation(fx, fy, fz, ux, uy, uz) {
         this.audio.setUserOrientation(this.localUserID, fx, fy, fz, ux, uy, uz);
         for (let toUserID of this.userIDs()) {
-            this.sendMessageTo(toUserID, "userTurned", { x, y, z });
+            this.sendMessageTo(toUserID, "userTurned", { fx, fy, fz, ux, uy, uz });
         }
     }
 
